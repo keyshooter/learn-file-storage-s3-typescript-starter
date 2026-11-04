@@ -4,7 +4,7 @@ import { type ApiConfig } from "../config";
 import type { BunRequest } from "bun";
 import { BadRequestError, UserForbiddenError } from "./errors";
 import { getBearerToken, validateJWT } from "../auth";
-import { getVideo, updateVideo } from "../db/videos";
+import { getVideo, updateVideo, type Video } from "../db/videos";
 import path from "path";
 
 const MAX_FILE_SIZE = 1 << 30;
@@ -69,7 +69,7 @@ export async function handlerUploadVideo(cfg: ApiConfig, req: BunRequest) {
   );
 
   await s3File.write(processedVideo);
-  videoMetadata.videoURL = `https://${cfg.s3Bucket}.s3.${cfg.s3Region}.amazonaws.com/${aspectRatio}/${videoId}.mp4`;
+  videoMetadata.videoURL = `https://${cfg.s3CfDistribution}/${aspectRatio}/${videoId}.mp4`;
 
   updateVideo(cfg.db, videoMetadata);
 

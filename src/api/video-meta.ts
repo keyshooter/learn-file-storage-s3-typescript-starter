@@ -2,8 +2,9 @@ import { type ApiConfig } from "../config";
 import { getBearerToken, validateJWT } from "../auth";
 import { createVideo, deleteVideo, getVideo, getVideos } from "../db/videos";
 import { respondWithJSON } from "./json";
-import { BadRequestError, NotFoundError, UserForbiddenError } from "./errors";
+import { BadRequestError, NotFoundError, UserForbiddenError, UserNotAuthenticatedError } from "./errors";
 import type { BunRequest } from "bun";
+
 
 export async function handlerVideoMetaCreate(cfg: ApiConfig, req: Request) {
   const token = getBearerToken(req.headers);
@@ -55,6 +56,17 @@ export async function handlerVideoGet(cfg: ApiConfig, req: BunRequest) {
     throw new NotFoundError("Couldn't find video");
   }
 
+  try {
+    const token = getBearerToken(req.headers);
+    const userID = validateJWT(token, cfg.jwtSecret);
+
+    if (video.userID !== userID) {
+      throw new UserNotAuthenticatedError("Couldn't validate JWT");
+    }
+  } catch {
+    throw new UserNotAuthenticatedError("Couldn't validate JWT");
+  }
+
   return respondWithJSON(200, video);
 }
 
@@ -63,5 +75,6 @@ export async function handlerVideosRetrieve(cfg: ApiConfig, req: Request) {
   const userID = validateJWT(token, cfg.jwtSecret);
 
   const videos = getVideos(cfg.db, userID);
+
   return respondWithJSON(200, videos);
 }
