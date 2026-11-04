@@ -5,6 +5,7 @@ import type { ApiConfig } from "../config";
 import type { BunRequest } from "bun";
 import { BadRequestError, NotFoundError, UserForbiddenError } from "./errors";
 import path from "path";
+import { randomBytes } from "crypto";
 
 const MAX_UPLOAD_SIZE = 10 << 20;
 const ALLOWED_IMAGE_FORMATS = [
@@ -36,11 +37,13 @@ export async function handlerUploadThumbnail(cfg: ApiConfig, req: BunRequest) {
     throw new BadRequestError("unsupported file");
   }
 
+  const randomName = randomBytes(32).toString("base64url");
+
   const [_, fileType] = mediaType.split("/");
   const thumbnailRaw = await thumbnail.arrayBuffer();
   const filePath = path.join(
     cfg.assetsRoot,
-    `${videoId}.${fileType}`,
+    `${randomName}.${fileType}`,
   );
   Bun.write(
     filePath,
@@ -52,7 +55,7 @@ export async function handlerUploadThumbnail(cfg: ApiConfig, req: BunRequest) {
     throw new UserForbiddenError("video is not yours");
   }
 
-  const url = `http://localhost:${cfg.port}/assets/${videoId}.${fileType}`;
+  const url = `http://localhost:${cfg.port}/assets/${randomName}.${fileType}`;
   videoMetadata.thumbnailURL = url;
   updateVideo(cfg.db, videoMetadata);
 
