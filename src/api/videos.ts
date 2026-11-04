@@ -47,7 +47,7 @@ export async function handlerUploadVideo(cfg: ApiConfig, req: BunRequest) {
 
   const mimeType = video.type;
   if (mimeType !== "video/mp4") {
-    throw new BadRequestError("video most be mp4");
+    throw new BadRequestError("video must be mp4");
   }
   const tmpFilePath = path.join(
     "/tmp",
@@ -55,6 +55,9 @@ export async function handlerUploadVideo(cfg: ApiConfig, req: BunRequest) {
   )
   const videoContent = await video.arrayBuffer();
   await Bun.write(tmpFilePath, videoContent);
+
+  const processedVideoPath = await processVideoForFastStart(tmpFilePath);
+  const processedVideo = await Bun.file(processedVideoPath).arrayBuffer();
 
   const aspectRatio = await getVideoAspectRatio(tmpFilePath);
 
@@ -65,7 +68,7 @@ export async function handlerUploadVideo(cfg: ApiConfig, req: BunRequest) {
     }
   );
 
-  await s3File.write(videoContent);
+  await s3File.write(processedVideo);
   videoMetadata.videoURL = `https://${cfg.s3Bucket}.s3.${cfg.s3Region}.amazonaws.com/${aspectRatio}/${videoId}.mp4`;
 
   updateVideo(cfg.db, videoMetadata);
@@ -84,7 +87,7 @@ export async function getVideoAspectRatio(filePath: string) {
     "stream=width,height",
     "-of",
     "json",
-    filePath
+    filePath,
   ], { stderr: "pipe", stdout: "pipe" });
 
   if (await proc.exited !== 0) {
@@ -103,4 +106,26 @@ export async function getVideoAspectRatio(filePath: string) {
   } else {
     return "other";
   }
+}
+
+async function processVideoForFastStart(inputFilePath: string) {
+  const outputFilePath = `${inputFilePath}.processed`
+  const proc = Bun.spawn([
+    "ffmpeg",
+    "-i",
+    inputFilePath,
+    "-movflags",
+    "faststart",
+    "-map_metadata",
+    "0",
+    "-codec",
+    "copy",
+    "-f",
+    "mp4",
+    outputFilePath,
+  ]);
+
+  await proc.exited;
+
+  return outputFilePath;
 }
